@@ -1,0 +1,77 @@
+name: TF - Create VPC, ECS, LB, ASG's
+on:
+ workflow_dispatch:
+     inputs:
+      VPC:
+        description: 'Create VPC?'
+        required: false 
+        type: boolean
+        default: false
+      deploy:
+        description: 'CAUTION - could OVERWRITE infrastructure!'
+        required: false 
+        type: boolean
+        default: false      
+      destroy:
+        description: 'CAUTION - will DESTROY infrastructure!'
+        required: false 
+        type: boolean
+        default: false
+ 
+env:
+ # verbosity setting for Terraform logs
+ TF_LOG: INFO
+ TF_VAR_secret_key: ${{ secrets.secret_key }}
+ AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+ AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+ AWS_REGION: ${{ secrets.AWS_DEFAULT_REGION }}
+ BUCKET_TF_STATE: ${{ secrets.BUCKET_TF_STATE}}
+ #TF_LOG_PROVIDER: trace
+ # Credentials for deployment to AWS
+ #AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+ #SECRET_KEY: ${{ secrets.SECRET_KEY }}
+ # S3 bucket for the Terraform state
+ #BUCKET_TF_STATE: ${{ secrets.BUCKET_TF_STATE}}
+ #PG_PASS: ${{ secrets.PG_PASS }}
+
+ 
+jobs:
+ 
+ terraform:
+   name: "Terraform Infrastructure Change Management"
+   runs-on: ubuntu-latest
+   defaults:
+     run:
+       shell: bash
+       #working-directory: ./tf/${{ github.event.inputs.environ }}db
+       working-directory: ./tf
+       
+   steps:
+     - name: Checkout the repo runner
+       uses: actions/checkout@v4
+     
+     - name: Setup Terraform with specified version on the runner
+       uses: hashicorp/setup-terraform@v3
+#       with:
+#         cli_config_credentials_token: ${{ secrets.TF_API_TOKEN }}
+#         args: '-var="secret_key=${{ secrets.SECRET_KEY }}"'
+
+     - name: Terraform init
+       id: init
+       run: terraform init -backend-config="bucket=$BUCKET_TF_STATE"
+    
+     - name: Terraform validate
+       id: validate
+       run: terraform validate
+ 
+     - name: Terraform planning
+       id: plan
+       run: terraform plan
+
+     - name: DEPLOYMENT
+       if:  ${{ inputs.deploy }}      
+       run: terraform apply -auto-approve
+
+     - name: DESTRUCTION
+       if:  ${{ inputs.destroy }}      
+       run: terraform destroy -auto-approve
